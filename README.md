@@ -36,7 +36,7 @@ open build/Mamute.app
 
 If you deny the **System Audio Recording** permission, an app you turn down may go fully silent instead. You can change this later in System Settings → Privacy & Security.
 
-Run the tests with `swift test`.
+Run the tests with `swift test`. Want to help? See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## How it works
 
