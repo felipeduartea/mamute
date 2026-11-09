@@ -1,12 +1,14 @@
 #!/bin/bash
-# Builds build/Mamute.app (ad-hoc signed).
+# Builds build/Mamute.app (runs on Apple Silicon and Intel) and build/Mamute.zip for GitHub Releases.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-swift build -c release
+ARCHS=(--arch arm64 --arch x86_64)
+swift build -c release "${ARCHS[@]}"
+BIN=$(swift build -c release "${ARCHS[@]}" --show-bin-path)
 APP=build/Mamute.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"
-cp .build/release/Mamute "$APP/Contents/MacOS/"
+cp "$BIN/Mamute" "$APP/Contents/MacOS/"
 cp Resources/Info.plist "$APP/Contents/"
 # App icon: every size macOS wants, generated from the 1024px Resources/AppIcon.png.
 ICONSET=build/AppIcon.iconset
@@ -20,4 +22,6 @@ iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 IDENTITY=$(security find-identity -v -p codesigning | grep -oE '"(Developer ID Application|Apple Development)[^"]*"' | head -1 | tr -d '"' || true)
 codesign --force --sign "${IDENTITY:--}" "$APP"
 echo "Signed with: ${IDENTITY:-ad-hoc (macOS will ask for audio permission again after each rebuild)}"
+rm -f build/Mamute.zip
+ditto -c -k --keepParent "$APP" build/Mamute.zip
 echo "$APP"

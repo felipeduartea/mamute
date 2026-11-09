@@ -14,12 +14,18 @@ macOS only gives you one volume for everything. Mamute adds a mute button and a 
 - No drivers or system extensions. Quit Mamute and every app's audio goes back to normal
 - Plays nice with notched MacBooks: the icon starts out right of the notch (⌘-drag it anywhere you like), and opening Mamute from Spotlight or Finder drops the panel down even if the icon is hidden
 
-## Requirements
+## Download
 
-- macOS 14.2 or newer
-- Xcode (or the Swift toolchain) to build it
+Requires macOS 14.2 or newer, on Apple Silicon or Intel.
 
-## Build and run
+1. Download **Mamute.zip** from the [latest release](https://github.com/felipeduartea/mamute/releases/latest) and unzip it.
+2. Drag **Mamute** into your **Applications** folder and double-click it.
+3. macOS will say it can't verify the app, because Mamute isn't signed by an Apple-registered developer yet. Click **Done**, then open **System Settings → Privacy & Security**, scroll down to the message about Mamute and click **Open Anyway**. Confirm with your password. You only need to do this once.
+4. The first time you change an app's volume, macOS asks to allow **System Audio Recording**. Click **Allow**; Mamute needs it to control app audio.
+
+## Build from source
+
+Needs Xcode (or the Swift toolchain).
 
 ```bash
 git clone https://github.com/felipeduartea/mamute.git
@@ -28,7 +34,7 @@ cd mamute
 open build/Mamute.app
 ```
 
-The first time you change an app's volume, macOS asks to allow **System Audio Recording**. Mamute needs it to control app audio; if you deny it, an app you turn down may go fully silent instead. You can change this later in System Settings → Privacy & Security.
+If you deny the **System Audio Recording** permission, an app you turn down may go fully silent instead. You can change this later in System Settings → Privacy & Security.
 
 Run the tests with `swift test`.
 
