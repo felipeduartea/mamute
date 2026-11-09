@@ -15,7 +15,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         MainActor.assumeIsolated {
             menuBar = MenuBarController(model: .shared)
-            menuBar?.show()
+        }
+        // Give AppKit a moment to place the menu bar icon so the panel can hang under it.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            MainActor.assumeIsolated { self?.menuBar?.show() }
         }
     }
 
@@ -53,7 +56,8 @@ final class MenuBarController {
     @objc private func toggle() { panel.isVisible ? hide() : show() }
 
     func show() {
-        panel.anchorTop = place()
+        panel.anchor = anchor()
+        panel.reposition()
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
@@ -73,52 +77,68 @@ final class MenuBarController {
         keyMonitor = nil
     }
 
-    /// Puts the panel under the icon, or at the top-right of the screen if the icon is hidden (e.g. behind the notch).
-    /// Returns the top edge the panel stays pinned to as it grows.
-    private func place() -> CGFloat {
-        if let fitting = panel.contentViewController?.view.fittingSize { panel.setContentSize(fitting) }
-        let size = panel.frame.size
-        if let window = item.button?.window, window.occlusionState.contains(.visible), let screen = window.screen {
-            let icon = window.frame
-            let x = min(max(icon.midX - size.width / 2, screen.frame.minX + 8), screen.frame.maxX - size.width - 8)
-            panel.setFrameOrigin(NSPoint(x: x, y: icon.minY - 6 - size.height))
-            return icon.minY - 6
+    private func isBehindNotch(_ icon: NSRect, on screen: NSScreen) -> Bool {
+        guard let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea else { return false }
+        return icon.midX > left.maxX && icon.midX < right.minX
+    }
+
+    /// Where the panel hangs: under the icon, or at the top-right of the screen if the icon is hidden (e.g. behind the notch).
+    private func anchor() -> DropDownPanel.Anchor {
+        if let window = item.button?.window, let screen = window.screen, window.frame.height > 0, // 0 until AppKit places the icon
+           window.frame.maxY >= screen.frame.maxY - 1, !isBehindNotch(window.frame, on: screen) {
+            return .init(top: window.frame.minY - 6, midX: window.frame.midX, screen: screen.frame)
         }
         let screen = NSScreen.main ?? NSScreen.screens[0]
-        let top = screen.visibleFrame.maxY - 6
-        panel.setFrameOrigin(NSPoint(x: screen.visibleFrame.maxX - size.width - 8, y: top - size.height))
-        return top
+        return .init(top: screen.visibleFrame.maxY - 6, midX: screen.visibleFrame.maxX, screen: screen.visibleFrame)
     }
 }
 
 /// Borderless floating panel that grows downward from a fixed top edge.
 final class DropDownPanel: NSPanel {
-    var anchorTop: CGFloat?
+    struct Anchor { let top: CGFloat, midX: CGFloat, screen: NSRect }
+    var anchor: Anchor?
+    private var resizeWatch: NSObjectProtocol?
 
     init<Content: View>(content: Content) {
         super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        let host = NSHostingController(rootView: content)
-        host.sizingOptions = .preferredContentSize
-        contentViewController = host
+        let host = FirstClickHostingView(rootView: content)
+        host.sizingOptions = [.minSize, .maxSize] // window always matches the SwiftUI content's size
+        contentView = host
         isOpaque = false
         backgroundColor = .clear
         hasShadow = true
         level = .statusBar
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         isReleasedWhenClosed = false
+        // Re-anchor after SwiftUI resizes the panel. Done on the next run loop turn, not inside the
+        // resize, because moving the window mid-layout recursed until the stack overflowed.
+        resizeWatch = NotificationCenter.default.addObserver(forName: NSWindow.didResizeNotification, object: self, queue: .main) { [weak self] _ in
+            DispatchQueue.main.async { self?.reposition() }
+        }
+    }
+
+    /// Hangs the panel from its anchor at its current size, centered but kept 8pt inside the screen.
+    func reposition() {
+        guard let anchor else { return }
+        let width = frame.width
+        let x = min(max(anchor.midX - width / 2, anchor.screen.minX + 8), anchor.screen.maxX - width - 8)
+        let origin = NSPoint(x: x, y: anchor.top - frame.height)
+        if frame.origin != origin { setFrameOrigin(origin) }
     }
 
     override var canBecomeKey: Bool { true }
+}
 
-    override func setFrame(_ frameRect: NSRect, display flag: Bool) {
-        var rect = frameRect
-        if let anchorTop { rect.origin.y = anchorTop - rect.height }
-        super.setFrame(rect, display: flag)
-    }
+/// Lets the first click on the panel press buttons right away, even when Mamute isn't the active app.
+final class FirstClickHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
 struct ContentView: View {
     @ObservedObject var model: AudioModel
+
+    private static let rowHeight: CGFloat = 54
+    private static let rowSpacing: CGFloat = 6
 
     private var playingCount: Int { model.rows.filter(\.isPlaying).count }
 
@@ -155,16 +175,16 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 22)
             } else {
+                // Fixed row height so the list's size never depends on its own layout (that fed a resize loop).
                 ScrollView {
-                    VStack(spacing: 6) {
-                        ForEach(model.rows) { AppRowView(row: $0, model: model) }
+                    VStack(spacing: Self.rowSpacing) {
+                        ForEach(model.rows) { AppRowView(row: $0, model: model).frame(height: Self.rowHeight) }
                             .disabled(model.muteAll)
                             .opacity(model.muteAll ? 0.45 : 1)
                     }
                     .padding(.horizontal, 8)
                 }
-                .frame(maxHeight: 420)
-                .fixedSize(horizontal: false, vertical: true)
+                .frame(height: min(CGFloat(model.rows.count) * (Self.rowHeight + Self.rowSpacing) - Self.rowSpacing, 420))
             }
 
             Divider().padding(.horizontal, 14).padding(.top, 8)
@@ -209,17 +229,27 @@ struct AppRowView: View {
                             .help("Mamute couldn't control this app's audio.")
                     }
                     Spacer()
-                    Text(row.setting.muted ? "Muted" : "\(Int((row.setting.volume * 100).rounded()))%")
-                        .font(.caption)
-                        .monospacedDigit()
-                        .foregroundStyle(row.setting.muted ? Color.red : Color.secondary)
+                    if row.setting.muted {
+                        Text("Muted")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(Color.red))
+                    } else {
+                        Text("\(Int((row.setting.volume * 100).rounded()))%")
+                            .font(.caption)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 HStack(spacing: 6) {
                     Button { model.toggleMute(row.id) } label: {
                         Image(systemName: row.setting.muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                            .font(.system(size: 11))
-                            .frame(width: 16)
-                            .foregroundStyle(row.setting.muted ? Color.red : Color.secondary)
+                            .font(.system(size: 11, weight: row.setting.muted ? .bold : .regular))
+                            .foregroundStyle(row.setting.muted ? Color.primary : Color.secondary)
+                            .frame(width: 22, height: 18)
+                            .contentShape(Rectangle()) // whole box is clickable, not just the glyph
                     }
                     .buttonStyle(.borderless)
                     .help(row.setting.muted ? "Unmute" : "Mute")

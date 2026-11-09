@@ -8,6 +8,8 @@
 	<string>Mamute</string>
 	<key>CFBundleDisplayName</key>
 	<string>Mamute</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleExecutable</key>
 	<string>Mamute</string>
 	<key>CFBundlePackageType</key>
