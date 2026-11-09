@@ -1,0 +1,43 @@
+# Mamute
+
+Mute or turn down individual apps on your Mac.
+
+macOS only gives you one volume for everything. Mamute adds a mute button and a volume slider for each app, so you can silence Slack, keep Spotify at 30%, and leave your call at full volume.
+
+## Features
+
+- Lists the apps that are playing sound, with a mute button and a 0–100% slider for each
+- Remembers your settings per app, even after the app or your Mac restarts
+- Browser audio is grouped under the browser (Chrome, Safari, …), not its helper processes
+- Follows you when the output device changes (e.g. AirPods connect)
+- No drivers or system extensions. Quit Mamute and every app's audio goes back to normal
+- Lives in the menu bar. Opening the app again also shows the panel as a window, in case the menu bar icon is hidden behind the notch
+
+## Requirements
+
+- macOS 14.2 or newer
+- Xcode (or the Swift toolchain) to build it
+
+## Build and run
+
+```bash
+git clone https://github.com/felipeduartea/mamute.git
+cd mamute
+./scripts/build-app.sh
+open build/Mamute.app
+```
+
+The first time you change an app's volume, macOS asks to allow **System Audio Recording**. Mamute needs it to control app audio; if you deny it, an app you turn down may go fully silent instead. You can change this later in System Settings → Privacy & Security.
+
+Run the tests with `swift test`.
+
+## How it works
+
+Mamute uses Core Audio process taps (macOS 14.2+). Apps at 100% are left alone. For an app you mute or turn down, Mamute taps its audio, which silences the app's normal output, and plays the tapped audio to your output device at the volume you picked (silence when muted). The taps are private to Mamute, so they disappear when it quits.
+
+More detail in [docs/design.md](docs/design.md).
+
+## Known limitations
+
+- Muting is per app, not per browser tab.
+- Builds are ad-hoc signed, so macOS may ask for the audio permission again after you rebuild.
