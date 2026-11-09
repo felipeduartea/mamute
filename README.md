@@ -41,3 +41,7 @@ More detail in [docs/design.md](docs/design.md).
 
 - Muting is per app, not per browser tab.
 - Builds are ad-hoc signed, so macOS may ask for the audio permission again after you rebuild.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
