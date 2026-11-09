@@ -38,11 +38,6 @@ Mamute uses Core Audio process taps (macOS 14.2+). Apps at 100% are left alone. 
 
 More detail in [docs/design.md](docs/design.md).
 
-## Known limitations
-
-- Muting is per app, not per browser tab. System alert sounds are not affected.
-- Builds are ad-hoc signed, so macOS may ask for the audio permission again after you rebuild.
-
 ## License
 
 MIT, see [LICENSE](LICENSE).
