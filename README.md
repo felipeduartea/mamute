@@ -6,12 +6,13 @@ macOS only gives you one volume for everything. Mamute adds a mute button and a 
 
 ## Features
 
-- Lists the apps that are playing sound, with a mute button and a 0–100% slider for each
+- Click the mammoth in the menu bar and a panel drops down with the apps that are playing sound, each with a mute button and a 0–100% slider
+- **Mute all** silences every app at once (the mammoth gets a slash so you know). Turn it off and each app goes back to the volume you set
 - Remembers your settings per app, even after the app or your Mac restarts
 - Browser audio is grouped under the browser (Chrome, Safari, …), not its helper processes
 - Follows you when the output device changes (e.g. AirPods connect)
 - No drivers or system extensions. Quit Mamute and every app's audio goes back to normal
-- Lives in the menu bar. Opening the app again also shows the panel as a window, in case the menu bar icon is hidden behind the notch
+- Plays nice with notched MacBooks: the icon starts out right of the notch (⌘-drag it anywhere you like), and opening Mamute from Spotlight or Finder drops the panel down even if the icon is hidden
 
 ## Requirements
 
@@ -39,7 +40,7 @@ More detail in [docs/design.md](docs/design.md).
 
 ## Known limitations
 
-- Muting is per app, not per browser tab.
+- Muting is per app, not per browser tab. System alert sounds are not affected.
 - Builds are ad-hoc signed, so macOS may ask for the audio permission again after you rebuild.
 
 ## License
