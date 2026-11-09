@@ -37,6 +37,7 @@ final class MenuBarController {
     private var clickMonitor: Any?
     private var keyMonitor: Any?
     private var iconWatch: AnyCancellable?
+    private var model: AudioModel!
 
     init(model: AudioModel) {
         // New icons land at the left end of the menu bar items, which on crowded notched Macs is behind the notch.
@@ -47,13 +48,41 @@ final class MenuBarController {
         item.autosaveName = "mamute"
         panel = DropDownPanel(content: ContentView(model: model))
         item.button?.target = self
-        item.button?.action = #selector(toggle)
+        item.button?.action = #selector(clicked)
+        item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         iconWatch = model.$muteAll.sink { [weak self] muteAll in
             self?.item.button?.image = mammothIcon(muted: muteAll)
         }
+        self.model = model
     }
 
-    @objc private func toggle() { panel.isVisible ? hide() : show() }
+    @objc private func clicked() {
+        let isRightClick = NSApp.currentEvent?.type == .rightMouseUp
+            || NSApp.currentEvent?.modifierFlags.contains(.control) == true
+        if isRightClick { showContextMenu() } else { panel.isVisible ? hide() : show() }
+    }
+
+    /// Right-click menu: Mute all / Unmute all and Quit.
+    private func showContextMenu() {
+        hide()
+        let menu = NSMenu()
+        let mute = NSMenuItem(title: model.muteAll ? "Unmute all" : "Mute all", action: #selector(toggleMuteAll), keyEquivalent: "")
+        mute.target = self
+        menu.addItem(mute)
+        menu.addItem(.separator())
+        // Custom action instead of NSApplication.terminate: macOS adds a system icon to the standard Quit action.
+        let quit = NSMenuItem(title: "Quit Mamute", action: #selector(quitApp), keyEquivalent: "q")
+        quit.target = self
+        menu.addItem(quit)
+        // Attach only for this click, otherwise the menu would also open on a normal left click.
+        item.menu = menu
+        item.button?.performClick(nil)
+        item.menu = nil
+    }
+
+    @objc private func quitApp() { NSApp.terminate(nil) }
+
+    @objc private func toggleMuteAll() { model.toggleMuteAll() }
 
     func show() {
         panel.anchor = anchor()
