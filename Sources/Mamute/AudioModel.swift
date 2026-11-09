@@ -22,6 +22,8 @@ final class AudioModel: ObservableObject {
     static let shared = AudioModel()
 
     @Published private(set) var rows: [AppRow] = []
+    /// Silences every app without touching their own settings, so turning it off restores them.
+    @Published private(set) var muteAll = UserDefaults.standard.bool(forKey: AudioModel.muteAllKey)
 
     private var settings: [String: AppSetting]
     private var seen: Set<String> = [] // apps that played since launch
@@ -30,8 +32,7 @@ final class AudioModel: ObservableObject {
     private var timer: Timer?
     private let log = Logger(subsystem: "com.felipeduarte.mamute", category: "audio")
     private static let settingsKey = "settings"
-
-    var anyQuieted: Bool { rows.contains { $0.setting.gain < 1 } }
+    private static let muteAllKey = "muteAll"
 
     init() {
         let data = UserDefaults.standard.data(forKey: Self.settingsKey)
@@ -50,6 +51,14 @@ final class AudioModel: ObservableObject {
     func toggleMute(_ bundleID: String) {
         update(bundleID) { $0.muted.toggle() }
     }
+
+    func toggleMuteAll() {
+        muteAll.toggle()
+        UserDefaults.standard.set(muteAll, forKey: Self.muteAllKey)
+        refresh()
+    }
+
+    private func gain(_ bundleID: String) -> Float { muteAll ? 0 : settings[bundleID]?.gain ?? 1 }
 
     private func update(_ bundleID: String, _ change: (inout AppSetting) -> Void) {
         var s = settings[bundleID] ?? AppSetting()
@@ -87,12 +96,12 @@ final class AudioModel: ObservableObject {
     private func reconcileTaps(_ groups: [String: Set<AudioObjectID>]) {
         let output = defaultOutputUID()
         for (id, tap) in taps {
-            let gain = settings[id]?.gain ?? 1
+            let gain = gain(id)
             if gain == 1 || groups[id] != tap.processes || tap.outputUID != output { taps[id] = nil }
         }
         guard let output else { return }
         for (id, processes) in groups {
-            let gain = settings[id]?.gain ?? 1
+            let gain = gain(id)
             guard gain != 1 else { continue }
             if let tap = taps[id] { tap.setGain(gain); continue }
             guard !failed.contains(id) else { continue }
